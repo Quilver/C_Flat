@@ -104,6 +104,10 @@ public class Lexer : InterpreterLogger
                     newToken.Type = TokenType.More;
                     newToken.Word = c.ToString();
                     break;
+                case ';':
+                    newToken.Type = TokenType.SemiCol;
+                    newToken.Word = c.ToString();
+                    break;
                 default :
                     if (char.IsDigit(c))
                     {

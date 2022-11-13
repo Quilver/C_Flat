@@ -22,14 +22,47 @@ public class Transpiler : InterpreterLogger
         //Retrieve program.cs file
         var writer = File.CreateText(GetProgramPath());
         string prog = $@"Console.Out.WriteLine(";
+        string vari = $@"";
+        int index = 0;
+        bool declaring = false; 
         foreach (var tok in tokens)
         {
-            //TODO: Refactor this if needed
-            if (tok.Type is TokenType.Sub && prog.EndsWith('-'))
-                prog += ' ';
-            prog += (tok.Value ?? tok.Word);
+           
+
+            // check to see if token is declaring a variable
+            if (string.Equals(tok.Word, "double") || declaring == true )
+            {
+                declaring = true;
+                vari += (tok.Word + " ");
+                if (string.Equals(tok.Word, ";"))
+                {
+                    declaring = false;
+                    vari += System.Environment.NewLine;
+                }
+                //if ((tokens[index + 2].Type == TokenType.Equals) && (tokens[index + 3].Type == TokenType.Num))
+                //{
+                //    vari += ("double " + tokens[1].Word + " = " + tokens[3].Word + ";" + System.Environment.NewLine);
+                //}
+                //else
+                //{
+                //    vari += ("double " + tokens[1].Word + ";" + System.Environment.NewLine);
+                //}
+                
+            }
+            //
+            else
+            {
+                //TODO: Refactor this if needed
+                if (tok.Type is TokenType.Sub && prog.EndsWith('-'))
+                    prog += ' ';
+                prog += (tok.Value ?? tok.Word);
+            }
+
+            index++;
         }
         prog += @");";
+        //vari = ("double " + tokens[1].Word + " = " + tokens[3].Word + ";" + System.Environment.NewLine);
+        writer.Write(vari);
         writer.Write(prog);
         writer.Close();
     }

@@ -35,7 +35,20 @@ public class Parser : InterpreterLogger
 	}
 
 	//Helper Functions
-	
+	private bool CheckVarLiteral()
+	{
+		var word = _tokens[_currentIndex].Word;
+		if (word.Equals("var"))
+		{
+			//
+			// HARD CODED SOLUTION || NO CHECKS CURRENTLY, JUST ASSUMES DOUBLE
+			//
+			_tokens[_currentIndex].Word = "double";
+			return true;
+		}
+		_logger.Error($"Var parse error! Expected variable literal, actual: \"{word}\"");
+		return false;
+	}
 	private bool CheckBoolLiteral()
 	{
 		var word = _tokens[_currentIndex].Word;
@@ -103,8 +116,23 @@ public class Parser : InterpreterLogger
 		}
 
 		if (_currentIndex >= _totalTokens) return;
-		Reset();
+
+
 		LogicStatement(level + 1);
+
+		Reset();
+		try
+		{
+			DeclareVariable(level + 1);
+			return;
+		}
+
+		catch (Exception e)
+		{
+			_logger.Warning(e.Message);
+			Reset();
+		}
+
 	}
 	private void Expression(int level)
 	{
@@ -237,6 +265,59 @@ public class Parser : InterpreterLogger
 		}
 		Advance(level + 1);
 		Expression(level + 1);
+	}
+
+	private void DeclareVariable(int level)
+    {
+		_logger.Information("DeclareVariable() called at level {level}", level);
+		// check for String token with the name "var"
+		if (Match(TokenType.String) && CheckVarLiteral())
+		{
+			Advance(level + 1);
+		}
+		else
+		{
+			_logger.Error("Syntax Error! variable is not declared, expected \"var\" actual: {@word} ", _tokens[_currentIndex].Word); 
+			return;
+		}
+		// check for String token (variable name)
+		if (Match(TokenType.String))
+		{
+			Advance(level + 1);
+		}
+		else
+		{
+			_logger.Error("Syntax Error! variable does not have a name, expected \"X\" actual: {@word} ", _tokens[_currentIndex].Word); 
+			return;
+		}
+		// check if a value is being assigned
+		try
+		{
+			if (Match(TokenType.Equals))
+			{
+				Advance(level + 1);
+			}
+			else return;
+			if (Match(TokenType.Num))
+			{
+				Advance(level + 1);
+			}
+			else return;
+		}
+		catch (Exception e)
+		{
+			_logger.Warning(e.Message);
+		}
+		// check for semicolon to complete declaration
+		if (Match(TokenType.SemiCol))
+		{
+			Advance(level + 1);
+		}
+		else
+		{
+			_logger.Error("Syntax Error! declaration is not closed, expected \";\" actual: {@word} ", _tokens[_currentIndex].Word);
+			return;
+		}
 	}
 	//EBNF Functions
 }
