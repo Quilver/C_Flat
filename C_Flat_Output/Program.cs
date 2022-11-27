@@ -1,2 +1,1 @@
-// See https://aka.ms/new-console-template for more information
-Console.WriteLine("Hello, World!");
+if(34+2==5){bool hello=true;}

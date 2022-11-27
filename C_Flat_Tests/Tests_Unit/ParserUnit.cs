@@ -29,7 +29,7 @@ public class ParserUnit
     public void Parser_BlockTreeSingleStatement()
     {
         //declarations
-        string statement = "4+3;";
+        string statement = "double hello;";
         Lexer lexer = new Lexer();
         lexer.Tokenise(statement);
         List<Token> tokens = lexer.GetTokens();
@@ -38,14 +38,14 @@ public class ParserUnit
         Parser parser = new Parser();
         //tests
         Assert.That(ValidStatementNode(block.statements[0], statement));
-        parser.Parse(tokens);
+        //parser.Parse(tokens);
         Assert.That(parser.Parse(tokens) == 0);
     }
     [Test]
     public void Parser_BlockTreeMultipleStatements()
     {
         //declarations
-        string statement = "4+3;true==false;";
+        string statement = "bool foo; double bar;";
         Lexer lexer = new Lexer();
         lexer.Tokenise(statement);
         List<Token> tokens = lexer.GetTokens();
@@ -53,8 +53,8 @@ public class ParserUnit
         block.Load(tokens, 0);
         Parser parser = new Parser();
         //tests
-        Assert.That(ValidStatementNode(block.statements[0], "4+3;"));
-        Assert.That(ValidStatementNode(block.statements[1], "true==false;"));
+        //Assert.That(ValidStatementNode(block.statements[0], "4+3;"));
+        //Assert.That(ValidStatementNode(block.statements[1], "true==false;"));
         Assert.That(parser.Parse(tokens) == 0);
     }
     [Test]
@@ -108,7 +108,7 @@ public class ParserUnit
     public void Parser_IfElseStatement()
     {
         //declarations
-        string statement = "if(true){7;}else{true==false;}";
+        string statement = "if(true){}else{}";
         Lexer lexer = new Lexer();
         lexer.Tokenise(statement);
         List<Token> tokens = lexer.GetTokens();
@@ -117,9 +117,103 @@ public class ParserUnit
         Parser parser = new Parser();
         //tests
         Assert.That(ValidStatementNode(block.statements[0], "if(true){}"));
-        Assert.That(ValidStatementNode(block.statements[0].subBlock.statements[0], "7;"));
         Assert.That(ValidStatementNode(block.statements[1], "else{}"));
-        Assert.That(ValidStatementNode(block.statements[1].subBlock.statements[0], "true==false;"));
+        Assert.That(parser.Parse(tokens) == 0);
+    }
+    [Test]
+    public void Parser_DeclareStatement()
+    {
+        //declarations
+        string statement = "double pi;";
+        Lexer lexer = new Lexer();
+        lexer.Tokenise(statement);
+        List<Token> tokens = lexer.GetTokens();
+        BlockNode block = new BlockNode();
+        block.Load(tokens, 0);
+        Parser parser = new Parser();
+        //tests
+        Assert.That(ValidStatementNode(block.statements[0], statement));
+        //parser.Parse(tokens);
+        Assert.That(parser.Parse(tokens) == 0);
+    }
+    [Test]
+    public void Parser_AssignmentStatement()
+    {
+        //declarations
+        string statement = "double pi; pi=3.14;";
+        Lexer lexer = new Lexer();
+        lexer.Tokenise(statement);
+        List<Token> tokens = lexer.GetTokens();
+        BlockNode block = new BlockNode();
+        block.Load(tokens, 0);
+        Parser parser = new Parser();
+        //tests
+        //Assert.That(ValidStatementNode(block.statements[0], statement));
+        //parser.Parse(tokens);
+        Assert.That(parser.Parse(tokens) == 0);
+    }
+    [Test]
+    public void Parser_DeclareAndAssignStatement()
+    {
+        //declarations
+        string statement = "double pi = 3.14;";
+        Lexer lexer = new Lexer();
+        lexer.Tokenise(statement);
+        List<Token> tokens = lexer.GetTokens();
+        BlockNode block = new BlockNode();
+        block.Load(tokens, 0);
+        Parser parser = new Parser();
+        //tests
+        Assert.That(ValidStatementNode(block.statements[0], statement));
+        //parser.Parse(tokens);
+        Assert.That(parser.Parse(tokens) == 0);
+    }
+    [Test]
+    public void Parser_CallMethod()
+    {
+        //declarations
+        string statement = "print(expression);";
+        Lexer lexer = new Lexer();
+        lexer.Tokenise(statement);
+        List<Token> tokens = lexer.GetTokens();
+        BlockNode block = new BlockNode();
+        block.Load(tokens, 0);
+        Parser parser = new Parser();
+        //tests
+        Assert.That(ValidStatementNode(block.statements[0], statement));
+        //parser.Parse(tokens);
+        Assert.That(parser.Parse(tokens) == 0);
+    }
+    [Test]
+    public void Parser_DefineMethod()
+    {
+        //declarations
+        string statement = "void basic(){}";
+        Lexer lexer = new Lexer();
+        lexer.Tokenise(statement);
+        List<Token> tokens = lexer.GetTokens();
+        BlockNode block = new BlockNode();
+        block.Load(tokens, 0);
+        Parser parser = new Parser();
+        //tests
+        Assert.That(ValidStatementNode(block.statements[0], statement));
+        //parser.Parse(tokens);
+        Assert.That(parser.Parse(tokens) == 0);
+    }
+    [Test]
+    public void Parser_DefineAndCallMethod()
+    {
+        //declarations
+        string statement = "double PI(){return 3.14;} double pi = PI();";
+        Lexer lexer = new Lexer();
+        lexer.Tokenise(statement);
+        List<Token> tokens = lexer.GetTokens();
+        BlockNode block = new BlockNode();
+        block.Load(tokens, 0);
+        Parser parser = new Parser();
+        //tests
+        Assert.That(ValidStatementNode(block.statements[0], statement));
+        //parser.Parse(tokens);
         Assert.That(parser.Parse(tokens) == 0);
     }
 }

@@ -1,18 +1,35 @@
 /*
- *	Statements:
- *	<Statement>::=<Expression> | <Logic-Statement>
+ *	Expression:
+	*	<Expression>::=<Numeric-Expression> | <Logic-Expression>
 
  *	Numerical expressions:
-	 *  <Expression>::= <Term> {('+'|'-') <Term>}
+	 *  <Numeric-Expression>::= <Term> {('+'|'-') <Term>}
 	 *	<Term>::= <Value> {('*'|'/') <Value>}
-	 *	<Value>::= '('<Expression>')' | <Number> | '-'<Value>
+	 *	<Value>::= '('<Numeric-Expression>')' | <Number> | '-'<Value>
 
  *	Logical expressions:
-	 *	<Logic-Statement>::= <Boolean> {<Condition>}
+	 *	<Logic-Expression>::= <Boolean> {<Condition>}
 	 *  <Condition>::= ('==' | '&' | '|') <Boolean>
-	 *	<Boolean>::= '!’<Logic-Statement> | 'true' | 'false' | <Expression-Query> | '('<Logic-Statement>')'
+	 *	<Boolean>::= '!’<Logic-Expression> | 'true' | 'false' | <Expression-Query> | '('<Logic-Expression>')'
 	 *	<Expression-Query> ::= <Expression> ('=='|'>'|'<') <Expression>
+	 	
+ *	Statements:
+	*	<Statement>::= <Declaration>';' | <Assignment>';' | <Flow-Control> | <Define> | <Call>
  
+ *	Declaration and Assignment:
+	*	<Declaration>::= 'double' <Identifier> ['=' <Numeric-Expression>] | 'bool' <Identifier> ['=' <Logic-Statement>] 
+	*	<Identifier>::= 'azAZ'
+	*	<Assignment>::= <Identifier>'='(<Numeric-Expression>|<Logic-Expression>)	
+ 
+ *	Flow control
+	*	<Flow-Control>::= <If-Statement> | <While-Statement>
+	*	<If-Statement>::= 'if(' <Logic-Expression> ')' <Block>
+	*	<While-Statement>::= 'while('<Logic-Expression> ')' <Block>
+	*	<Block>::= '{'{<Statement>}'}'
+	
+ *	Define and Call
+	*	<Define>::= ('void'|'double'|'bool') <Identifier>'('{<Declaration>}')'<Block>
+	*	<Call>::<Identifier>'('{<Expression>}')'
  * */
 
 using System.Data;
@@ -24,9 +41,7 @@ public class Parser : InterpreterLogger
 {
 	private TokenType _tokenType;
 	private int _totalTokens;
-	//private List<Token> _tokens; //TODO - define max with the group
 	private StatementNode _statement;
-	private int _indexBase;
 	private int _statementIndex;
 	//constructor
 	public Parser()
@@ -44,41 +59,38 @@ public class Parser : InterpreterLogger
 		_logger.Error($"Bool parse error! Expected boolean literal, actual: \"{word}\"");
 		return false;
 	}
-	private bool CheckIf()
+	private bool CheckString(string s)
     {
-		var word = _statement.statement[_statementIndex].Word;//_tokens[_currentIndex].Word;
-		if (word.Equals("if")) return true;
-		_logger.Error($"If parse error! Expected if, actual: \"{word}\"");
+		var word = _statement.statement[_statementIndex].Word;
+		if (word.Equals(s)) return true;
+		_logger.Error($"parse error! Expected word, actual: \"{word}\"");
 		return false;
 	}
-	private bool CheckElse()
-	{
-		var word = _statement.statement[_statementIndex].Word;//_tokens[_currentIndex].Word;
-		if (word.Equals("else")) return true;
-		_logger.Error($"Else parse error! Expected else, actual: \"{word}\"");
+	private bool HasVariable()
+    {
+		var word = _statement.statement[_statementIndex].Word;
+		if (_statement.HasVariable(word)) return true;
 		return false;
 	}
-	private bool CheckWhile()
-	{
-		var word = _statement.statement[_statementIndex].Word;//_tokens[_currentIndex].Word;
-		if (word.Equals("while")) return true;
-		_logger.Error($"While parse error! Expected while, actual: \"{word}\"");
-		return false;
+	private ValueType GetVariableType()
+    {
+		var word = _statement.statement[_statementIndex].Word;
+		return _statement.parentBlock.GetVariableType(word);
 	}
 	private bool Match(TokenType tokenType)
 	{
 		if (_tokenType == TokenType.Null) //only on first call,  TODO - find better way to do this that means we don't need to set to null and/or we don't need this check
         {
-			_tokenType = _statement.statement[_statementIndex].Type;//_tokens[_currentIndex].Type;
+			_tokenType = GetToken().Type;//_tokens[_currentIndex].Type;
 		}
 
 		if (tokenType == _tokenType)
 		{
-			_logger.Information("Token at index {index} matches {tokenType}", _indexBase+_statementIndex, tokenType);
+			_logger.Information("Token matches {tokenType}", tokenType);
 		}
 		else
 		{
-			_logger.Information("Token at index {index} does NOT MATCH {tokenType}", _indexBase + _statementIndex, tokenType);
+			_logger.Information("Token does NOT MATCH {tokenType}", tokenType);
 			return false;
 		}
 		return true;
@@ -87,9 +99,41 @@ public class Parser : InterpreterLogger
     {
 		return _statement.statement[_statementIndex];
     }
+	private bool TryStatement(int level, Action<int> statementType)
+    {
+		int index = _statementIndex;
+		try
+		{
+			statementType(level + 1);
+			//if (!Match(TokenType.SemiColon)) return; //this is terminal
+			return true;
+		}
+		catch (Exception e)
+		{
+			_logger.Warning(e.Message);
+			_statementIndex = index;
+			return false;
+		}
+	}
+	private bool TryExpression(int level, Action<int> expressionType)
+    {
+		int index = _statementIndex;
+		try
+		{
+			expressionType(level + 1);
+			return true;
+		}
+		catch (Exception e)
+		{
+			_logger.Warning(e.Message);
+			_statementIndex = index;
+			return false;
+		}
+	}
 	private void Reset()
 	{
 		_statementIndex = 0;
+		_tokenType = TokenType.Null;
 	}
 	private void Advance(int level)
 	{
@@ -99,23 +143,27 @@ public class Parser : InterpreterLogger
 		_tokenType = _statement.statement[_statementIndex].Type;//_tokens[_currentIndex].Type;
 		_logger.Information("advance() called at level {level}. Next token is {@token}", level, _statement.statement[_statementIndex]);//_tokens[_currentIndex]);
 	}
-    #endregion
-    
-	
+	private void AddVariable(ValueType type)
+	{
+		var word = _statement.statement[_statementIndex].Word;
+		_statement.parentBlock.AddVariable(word, type);
+	}
+	#endregion
+
+
 	//End Helper Functions
 
 	public int Parse(List<Token> tokens)
 	{
 		//_tokens = tokens;
 		_totalTokens = tokens.Count;
+		_statement = null;
+		_statementIndex = 0;
 		BlockNode block = new BlockNode();
-		_indexBase = 0;
 		block.Load(tokens, 0);
 		ParseTree(block, 0);
 		//if (_indexBase >= _totalTokens)
 		return 0;
-		_logger.Error("Syntax error! Could not parse Token: {@token}", _indexBase);//_tokens[_currentIndex]); //todo - Create test for this!
-		return 1;
 	}
 	private void ParseTree(BlockNode block, int level)
     {
@@ -123,59 +171,45 @@ public class Parser : InterpreterLogger
 		for (int i = 0; i < block.statements.Count; i++)
 		{
 			_statement = block.statements[i];
-			_statementIndex = 0;
+			Reset();
             try
             {
 				Statement(level + 1);
             }
             catch (Exception e)
             {
-				_logger.Error("Syntax error! Could not parse Token: {@token}", _indexBase);
-				throw;
+				_logger.Error("Syntax error! Could not parse Token: {@token}", GetToken().Word);
+				throw new Exception("Could not parse statement");
             }
-			_indexBase += _statement.Length;
 		}
 	}
 	//EBNF Functions
 	private void Statement(int level)
 	{
 		_logger.Information( "Statement() called at level {level}", level);
-		try
-		{
-			Expression(level + 1);
-			if (!Match(TokenType.SemiColon)) return; //this is terminal
-		}
-		catch (Exception e)
-		{
-			_logger.Warning(e.Message);
-			Reset();
-		}
-		try
-		{
-			IfStatements(level + 1);
+		if (TryExpression(level, Declare))
 			return;
-		}
-		catch (Exception e)
-		{
-			_logger.Warning(e.Message);
-			Reset();	
-		}
-		try
-		{
-			WhileStatement(level + 1);
+		else if (TryExpression(level, Assign))
 			return;
-		}
-		catch (Exception e)
-		{
-			_logger.Warning(e.Message);
-			Reset();
-		}
-		LogicStatement(level + 1);
-		if (!Match(TokenType.SemiColon)) return; //this is terminal
+		else if (TryExpression(level, IfStatement))
+			return;
+		else if (TryExpression(level, WhileStatement))
+			return;
+		else throw new Exception("Could not parse expression");
 	}
-
-    #region Expressions
+	
 	private void Expression(int level)
+    {
+		_logger.Information("Expression() called at level {level}", level);
+
+		if (TryExpression(level, Numerical_Expression))
+			return;
+		else if (TryExpression(level, LogicStatement))
+			return;
+		else throw new Exception("Could not parse expression");
+	}
+    #region Numerical expressions
+	private void Numerical_Expression(int level)
 	{
 		_logger.Information( "expression() called at level {level}", level);
 		Term(level + 1);
@@ -208,16 +242,16 @@ public class Parser : InterpreterLogger
 		else if (Match(TokenType.LeftParen))
 		{
 			Advance(level + 1);
-			Expression(level + 1);
+			Numerical_Expression(level + 1);
 			if (Match(TokenType.RightParen)) Advance(level + 1);
 			else
 			{
-				throw new SyntaxErrorException("Syntax Error! Mismatched parentheses at token " + _indexBase + _statementIndex);
+				throw new SyntaxErrorException("Syntax Error! Mismatched parentheses");
 			}
 		}
 		else
 		{
-			throw new SyntaxErrorException("Syntax Error! Unexpected token at token " + _indexBase + _statementIndex);
+			throw new SyntaxErrorException("Syntax Error! Unexpected token");
 		}
 	}
     #endregion
@@ -264,7 +298,7 @@ public class Parser : InterpreterLogger
 					if (Match(TokenType.RightParen)) Advance(level + 1);
 					else
 					{
-						_logger.Error("Syntax Error! Mismatched parentheses at token {index}", _indexBase + _statementIndex);
+						_logger.Error("Syntax Error! Mismatched parentheses");
 					}
 				}
 			}
@@ -294,7 +328,7 @@ public class Parser : InterpreterLogger
 	private void ExpressionQuery(int level)
 	{
 		_logger.Information( "ExpressionQuery() called at level {level}", level);
-		Expression(level + 1);
+		Numerical_Expression(level + 1);
 		if (!(Match(TokenType.Equals) || Match(TokenType.More) || Match(TokenType.Less)))
 			return;
 		if (Match(TokenType.Equals))
@@ -308,30 +342,88 @@ public class Parser : InterpreterLogger
 			}
 		}
 		Advance(level + 1);
-		Expression(level + 1);
+		Numerical_Expression(level + 1);
 	}
-    #endregion
-    #region Conditions and iterators
-	private void IfStatements(int level)
+	#endregion
+
+	#region Declaration and Assignment
+	void Declare(int level)
+	{
+		_logger.Information("Declare() called at level {level}", level);
+		//value type
+		ValueType type;
+		if (Match(TokenType.String) && CheckString("double"))
+			type = ValueType.RealNumber;
+		else if (Match(TokenType.String) && CheckString("bool"))
+			type = ValueType.Boolean;
+		else
+			throw new Exception("Cannot recognise value type");
+		Advance(level + 1);
+		//identifier
+		if (Match(TokenType.String) && !HasVariable())
+		{
+			AddVariable(type);
+		}
+		else
+			throw new Exception("Missing new identifier");
+		//try assignment
+		if (TryStatement(level, Assign))
+			return;
+		else
+			Advance(level + 1);
+		//Otherwise finish
+		if (Match(TokenType.SemiColon))
+			Advance(level + 1);
+		else throw new Exception("Missing semicolon");
+	}
+	void Assign(int level)
+	{
+		_logger.Information("Assign() called at level {level}", level);
+		ValueType type;
+		if (Match(TokenType.String) && HasVariable())
+		{
+			type = GetVariableType();
+			Advance(level + 1);
+		}
+		else throw new Exception("Missing variable to assign to");
+		if (Match(TokenType.Equals))
+			Advance(level + 1);
+		else throw new Exception("Missing =");
+		if (type.Equals(ValueType.RealNumber))
+		{
+			if (!TryExpression(level, Numerical_Expression))
+				throw new Exception("Invalid numeric expression");
+		}
+		else if (type.Equals(ValueType.Boolean))
+		{
+			if (!TryExpression(level, LogicStatement))
+				throw new Exception("Invalid logic expression");
+		}
+		if (Match(TokenType.SemiColon))
+			Advance(level + 1);
+		else throw new Exception("Missing semicolon");
+	}
+	#endregion
+
+	#region Conditions and iterators
+	private void IfStatement(int level)
     {
 		_logger.Information("if-statement() called at level {level}", level);
-		if (Match(TokenType.String) && CheckIf()) 
+		if (Match(TokenType.String) && CheckString("if")) 
 			Advance(level + 1);
-        else return;
+        else throw new Exception("Missing if");
 		if (Match(TokenType.LeftParen)) Advance(level + 1);
         else
         {
             _logger.Error("Syntax Error! Expected \"(\" actual: {@word} ", _statement.statement[_statementIndex].Word);
-			//_tokens[_currentIndex].Word);
-			return;
+			throw new Exception("Missing (");
         }
 		LogicStatement(level + 1);
 		if (Match(TokenType.RightParen)) Advance(level + 1);
 		else
         {
 			_logger.Error("Syntax Error! Expected \"(\" actual: {@word} ", _statement.statement[_statementIndex].Word);
-			//_tokens[_currentIndex].Word);
-			return;
+			throw new Exception("Missing )");
 		}
 		SubBlock(level + 1);
 		try
@@ -344,28 +436,28 @@ public class Parser : InterpreterLogger
 		}
 	}
 	private void ElseStatements(int level) {
-		if (Match(TokenType.String) && CheckElse())
+		if (Match(TokenType.String) && CheckString("else"))
 		{
 			Advance(level + 1);
 			SubBlock(level + 1);
 		}
         else
         {
-			return;
-        }
+			throw new Exception("Missing else");
+		}
 	}
 	private void WhileStatement(int level)
 	{
 		_logger.Information("while-statement() called at level {level}", level);
-		if (Match(TokenType.String) && CheckWhile())
+		if (Match(TokenType.String) && CheckString("while"))
 			Advance(level + 1);
-		else return;
+		else throw new Exception("Missing while");
 		if (Match(TokenType.LeftParen)) Advance(level + 1);
 		else
 		{
 			_logger.Error("Syntax Error! Expected \"(\" actual: {@word} ", _statement.statement[_statementIndex].Word);
 			//_tokens[_currentIndex].Word);
-			return;
+			throw new Exception("Missing (");
 		}
 		LogicStatement(level + 1);
 		if (Match(TokenType.RightParen)) Advance(level + 1);
@@ -373,7 +465,7 @@ public class Parser : InterpreterLogger
 		{
 			_logger.Error("Syntax Error! Expected \"(\" actual: {@word} ", _statement.statement[_statementIndex].Word);
 			//_tokens[_currentIndex].Word);
-			return;
+			throw new Exception("Missing )");
 		}
 		SubBlock(level + 1);
 	}
@@ -383,14 +475,14 @@ public class Parser : InterpreterLogger
 		{
 			_logger.Error("Syntax Error! Expected \"{\" actual: {@word} ", _statement.statement[_statementIndex].Word);
 			//_tokens[_currentIndex].Word);
-			return;
+			throw new Exception("Missing {");
 		}
 		if (Match(TokenType.RightCurlyBrace)) Advance(level + 1);
 		else
 		{
 			_logger.Error("Syntax Error! Expected \"}\" actual: {@word} ", _statement.statement[_statementIndex].Word);
 			//_tokens[_currentIndex].Word);
-			return;
+			throw new Exception("Missing }");
 		}
 		try
 		{
@@ -401,6 +493,8 @@ public class Parser : InterpreterLogger
 			_logger.Warning(e.Message);
 		}
 	}
-	#endregion
-	//EBNF Functions
+    #endregion
+
+    
+    //EBNF Functions
 }

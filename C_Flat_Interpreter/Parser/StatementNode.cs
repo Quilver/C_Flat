@@ -6,9 +6,10 @@ namespace C_Flat_Interpreter.Parser
     public class StatementNode
     {
         public List<Token> statement;
-        public BlockNode subBlock;
-        public StatementNode()
+        public BlockNode subBlock, parentBlock;
+        public StatementNode(BlockNode parent)
         {
+            this.parentBlock = parent;
             statement = new List<Token>();
         }
         public int Load(List<Token> tokens, int index)
@@ -52,6 +53,14 @@ namespace C_Flat_Interpreter.Parser
                     length+=subBlock.Length;
                 return length;
             }
+        }
+        public bool HasVariable(string identifier)
+        {
+            return parentBlock != null && parentBlock.HasVariable(identifier);
+        }
+        public ValueType GetVariableType(string identifier)
+        {
+            return parentBlock.GetVariableType(identifier);
         }
     }
 }
